@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.env
+.venv
+
+# IDEs
+.idea/
+.vscode/
+
+# Database
+*.db
+*.sqlite
+xray.db
+
+# Logs
+*.log
+server.log
+jobdescription.txt
+PRD.md
+ARCHITECTURE.md

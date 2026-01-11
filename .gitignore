@@ -43,3 +43,10 @@ server.log
 
 # Assignment materials (not part of submission)
 .assignment/
+
+# Submission documentation (keep only README.md, document.md, and ARCHITECTURE.md)
+IMPLEMENTATION_REVIEW.md
+SUBMISSION_CHECKLIST.md
+SUBMISSION_FILES.md
+SUBMISSION_PREPARATION.md
+VIDEO_WALKTHROUGH_SCRIPT.md

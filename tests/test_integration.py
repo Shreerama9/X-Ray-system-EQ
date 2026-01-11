@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker
 
 from api.main import app
 from api.database import Base, get_db
-from api import models
+from api import models  # Import models to register them with Base
 from sdk import xray_run, xray_step, client as xray_client
 
 
@@ -50,10 +50,38 @@ def api_client(test_db):
 
 
 @pytest.fixture
-def sdk_client(api_client):
-    # Point SDK to test API
-    xray_client.client.api_url = "http://testserver/v1"
-    return xray_client.client
+def sdk_client(api_client, monkeypatch):
+    """Patch the SDK client to use TestClient instead of real HTTP requests."""
+    import requests
+
+    # Store original requests.post before patching
+    original_post = requests.post
+
+    # Create a wrapper that converts requests calls to TestClient calls
+    class MockResponse:
+        def __init__(self, response):
+            self._response = response
+            self.status_code = response.status_code
+            self.text = response.text
+
+        def json(self):
+            return self._response.json()
+
+    def mock_post(url, **kwargs):
+        # Only intercept testserver URLs, let others fail naturally
+        if url.startswith("http://testserver"):
+            path = url.replace("http://testserver", "")
+            return MockResponse(api_client.post(path, **kwargs))
+        else:
+            # Let real requests.post handle non-testserver URLs (will fail)
+            return original_post(url, **kwargs)
+
+    # Patch requests.post to use TestClient
+    monkeypatch.setattr(requests, "post", mock_post)
+
+    # Point SDK to test server
+    xray_client.api_url = "http://testserver/v1"
+    return xray_client
 
 
 class TestFullPipelineFlow:
@@ -231,11 +259,12 @@ class TestFullPipelineFlow:
 
     def test_graceful_degradation_when_api_down(self, sdk_client):
         """Test that pipeline continues when X-Ray API is unavailable."""
-        from sdk import client as sdk_client_module
+        # Import the client module directly
+        from sdk.client import client as xray_client_instance
 
         # Point to non-existent API
-        original_url = sdk_client_module.client.api_url
-        sdk_client_module.client.api_url = "http://nonexistent:9999/v1"
+        original_url = xray_client_instance.api_url
+        xray_client_instance.api_url = "http://nonexistent:9999/v1"
 
         # Pipeline should not crash
         executed = False
@@ -251,7 +280,7 @@ class TestFullPipelineFlow:
             assert executed  # Verify business logic ran
         finally:
             # Restore
-            sdk_client_module.client.api_url = original_url
+            xray_client_instance.api_url = original_url
 
 
 class TestQueryingCapabilities:

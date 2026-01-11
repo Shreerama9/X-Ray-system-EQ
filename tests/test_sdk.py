@@ -99,7 +99,7 @@ class TestXRayRun:
         with xray_run("TestPipeline", metadata={"key": "value"}) as run:
             assert run.run_id == "run_123"
 
-        mock_start_run.assert_called_once_with("TestPipeline", {"key": "value"})
+        mock_start_run.assert_called_once_with("TestPipeline", {"key": "value"}, None, None)
 
     @patch("sdk.client.client.start_run")
     def test_run_context_handles_no_run_id(self, mock_start_run):

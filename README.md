@@ -44,8 +44,6 @@ xray-sdk/
 │   ├── test_api.py
 │   └── test_integration.py
 ├── ARCHITECTURE.md           # Comprehensive design doc
-├── SUBMISSION_CHECKLIST.md   # Pre-submission verification
-├── VIDEO_WALKTHROUGH_SCRIPT.md
 └── requirements.txt
 ```
 

@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 from api.main import app
 from api.database import Base, get_db
-from api import models
+from api import models  # Import models to register them with Base
 
 
 # Test database setup

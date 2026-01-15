@@ -44,6 +44,9 @@ server.log
 # Assignment materials (not part of submission)
 .assignment/
 
+# Test and preparation materials
+.test/
+
 # Submission documentation (keep only README.md, document.md, and ARCHITECTURE.md)
 IMPLEMENTATION_REVIEW.md
 SUBMISSION_CHECKLIST.md

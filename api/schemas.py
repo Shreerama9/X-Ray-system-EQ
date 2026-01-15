@@ -14,6 +14,13 @@ class CandidateCreate(BaseModel):
     score: Optional[Any] = None
     reasoning: Optional[str] = None
 
+class Candidate(CandidateCreate):
+    id: uuid.UUID
+    step_id: uuid.UUID
+
+    class Config:
+        from_attributes = True
+
 class StepBase(BaseModel):
     step_name: str
     step_type: str  # "LLM", "FILTER", "API", "RANKING"

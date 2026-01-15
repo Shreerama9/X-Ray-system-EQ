@@ -132,3 +132,73 @@ def query_steps(
 
     steps = query.offset(skip).limit(limit).all()
     return steps
+
+@router.get("/candidates", response_model=List[schemas.Candidate])
+def query_candidates(
+    skip: int = 0,
+    limit: int = 100,
+    decision: str = None,
+    step_id: str = None,
+    db: Session = Depends(database.get_db)
+):
+    """
+    Query candidate decisions across all steps.
+    Supports filtering by decision type and step_id.
+
+    Examples:
+    - /candidates?decision=selected
+    - /candidates?decision=rejected&limit=50
+    - /candidates?step_id=abc123
+    """
+    query = db.query(models.CandidateDecision)
+
+    if decision:
+        query = query.filter(models.CandidateDecision.decision == decision)
+    if step_id:
+        query = query.filter(models.CandidateDecision.step_id == step_id)
+
+    candidates = query.offset(skip).limit(limit).all()
+    return candidates
+
+@router.get("/stats")
+def get_stats(db: Session = Depends(database.get_db)):
+    """
+    Get database statistics for the dashboard.
+    Returns counts of runs, steps, and candidates.
+    """
+    total_runs = db.query(models.Run).count()
+    successful_runs = db.query(models.Run).filter(models.Run.status == "SUCCESS").count()
+    failed_runs = db.query(models.Run).filter(models.Run.status == "FAILURE").count()
+
+    total_steps = db.query(models.Step).count()
+    successful_steps = db.query(models.Step).filter(models.Step.status == "SUCCESS").count()
+    failed_steps = db.query(models.Step).filter(models.Step.status == "FAILURE").count()
+
+    total_candidates = db.query(models.CandidateDecision).count()
+    selected_candidates = db.query(models.CandidateDecision).filter(models.CandidateDecision.decision == "selected").count()
+    accepted_candidates = db.query(models.CandidateDecision).filter(models.CandidateDecision.decision == "accepted").count()
+    rejected_candidates = db.query(models.CandidateDecision).filter(models.CandidateDecision.decision == "rejected").count()
+
+    pipeline_types = db.query(models.Run.pipeline_type).distinct().count()
+    step_types = db.query(models.Step.step_type).distinct().all()
+
+    return {
+        "runs": {
+            "total": total_runs,
+            "successful": successful_runs,
+            "failed": failed_runs
+        },
+        "steps": {
+            "total": total_steps,
+            "successful": successful_steps,
+            "failed": failed_steps
+        },
+        "candidates": {
+            "total": total_candidates,
+            "selected": selected_candidates,
+            "accepted": accepted_candidates,
+            "rejected": rejected_candidates
+        },
+        "pipeline_types": pipeline_types,
+        "step_types": [s[0] for s in step_types]
+    }

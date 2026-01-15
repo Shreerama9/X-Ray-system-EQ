@@ -10,17 +10,20 @@ X-Ray is a decision forensics observability system that answers *"Why did my pip
 
 ## Table of Contents
 1. [System Overview](#system-overview)
-2. [Core Design Principles](#core-design-principles)
-3. [Data Model Rationale](#data-model-rationale)
-4. [Debugging Walkthrough](#debugging-walkthrough)
-5. [Queryability](#queryability)
-6. [Performance & Scale](#performance--scale)
-7. [Developer Experience](#developer-experience)
-8. [Real-World Application](#real-world-application)
-9. [API Specification](#api-specification)
-10. [Technical Stack Details](#technical-stack-details)
-11. [Key Innovations](#key-innovations)
-12. [What's Next](#whats-next)
+2. [Frontend Dashboard](#frontend-dashboard)
+3. [Core Design Principles](#core-design-principles)
+4. [Data Model Rationale](#data-model-rationale)
+5. [Debugging Walkthrough](#debugging-walkthrough)
+6. [Queryability](#queryability)
+7. [Performance & Scale](#performance--scale)
+8. [Developer Experience](#developer-experience)
+9. [Real-World Application](#real-world-application)
+10. [API Specification](#api-specification)
+11. [Technical Stack Details](#technical-stack-details)
+12. [Key Innovations](#key-innovations)
+13. [Deployment Guide](#deployment-guide)
+14. [What's Next](#whats-next)
+15. [Conclusion](#conclusion)
 
 ---
 
@@ -31,48 +34,90 @@ X-Ray is a **decision forensics system** designed to answer *"Why did my pipelin
 ### High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Application Code                           │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  with xray_run("CompetitorDiscovery", metadata=...):      │  │
-│  │    with xray_step("GenerateKeywords", "LLM"):             │  │
-│  │      keywords = generate_keywords(product)                │  │
-│  │      step.log_stats(input_count=1, output_count=3)        │  │
-│  │                                                            │  │
-│  │    with xray_step("FilterCompetitors", "FILTER"):         │  │
-│  │      filtered = filter_by_price(candidates)               │  │
-│  │      step.log_sampled_candidates(                         │  │
-│  │        accepted=kept, rejected=dropped)                   │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                              │                                   │
-│                              │ Async HTTP POST                   │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │              X-Ray SDK (Fire-and-Forget)                  │  │
-│  │  • Context management (run/step)                          │  │
-│  │  • Serialization                                          │  │
-│  │  • Graceful degradation                                   │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    Frontend Dashboard                       │
+│  • Next.js / Tailwind UI                                    │
+│  • Real-time Auto-refresh                                   │
+│  • Run & Step Visualization                                 │
+└─────────────────────────────────────────────────────────────┘
+               │
+               │ HTTP GET /v1/runs
+               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Application Code                       │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  with xray_run("Discovery", metadata=...):            │  │
+│  │    with xray_step("Ranking", "LLM"):                  │  │
+│  │      ...                                              │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                              │                               │
+│                              │ Async HTTP POST               │
+│                              ▼                               │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │              X-Ray SDK (Fire-and-Forget)              │  │
+│  │  • Context management (run/step)                      │  │
+│  │  • Serialization                                      │  │
+│  │  • Graceful degradation                               │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
                                │
                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        X-Ray API                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │ POST /runs   │  │ POST /steps  │  │ GET /runs?filters... │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-│                                                                 │
-│                          ▼                                      │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │              PostgreSQL/SQLite Database                   │  │
-│  │                                                            │  │
-│  │  ┌──────────┐       ┌───────────┐       ┌──────────────┐  │  │
-│  │  │   Runs   │───────│   Steps   │───────│  Candidates  │  │  │
-│  │  └──────────┘ 1:N   └───────────┘ 1:N   └──────────────┘  │  │
-│  │                                                            │  │
+┌─────────────────────────────────────────────────────────────┐
+│                        X-Ray API                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │ POST /runs   │  │ POST /steps  │  │ GET /runs?...    │   │
+│  └──────────────┘  └──────────────┘  └──────────────────┘   │
+│                                                             │
+│                          ▼                                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │              PostgreSQL/SQLite Database               │  │
+│  │                                                          │  │
+│  │  ┌──────────┐       ┌───────────┐       ┌──────────┐     │  │
+│  │  │   Runs   │───────│   Steps   │───────│Decision  │     │  │
+│  │  └──────────┘ 1:N   └───────────┘ 1:N   └──────────┘     │  │
+│  │                                                          │  │
 │  │  Indexes on: pipeline_type, step_type, stats.* (JSONB)   │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Frontend Dashboard
+
+The X-Ray Dashboard provides a human-readable interface for exploring pipeline forensics, built with a focus on speed and visual clarity.
+
+### Implementation Overview
+- **Framework**: Next.js 15 (App Router) for a modern, performant web foundation.
+- **Styling**: Tailwind CSS for a responsive, clean "Bento-box" style UI.
+- **Language**: TypeScript for end-to-end type safety between API and UI.
+
+### Key Features
+
+#### 1. **Live Feed with Auto-Refresh**
+The home page features an opt-in "Auto-refresh" mechanism (3-second interval) using standard React hooks, allowing developers to watch pipeline runs appear in real-time during debugging sessions.
+
+#### 2. **Execution Visualizer**
+Each "Run" detail page visualizes the step hierarchy:
+- **Step List**: Chronological order of execution with timing and status icons.
+- **Decision Detail**: For any step, the UI displays the sampled candidates, their scores, and the "reasoning" behind their acceptance or rejection.
+
+#### 3. **Global Statistics Grid**
+Uses a specialized `/v1/stats` endpoint to aggregate:
+- Total runs (Success vs Failure distribution)
+- Total candidate decisions recorded
+- Distribution of pipeline types
+
+### Data Flow
+The frontend is decoupled from the backend logic, communicating purely via the REST API. It uses a lightweight API utility library (`lib/api.ts`) to handle fetch requests with proper error states and loading indicators.
+
+```mermaid
+graph LR
+    User --> Browser
+    Browser -->|GET /runs| API
+    Browser -->|GET /stats| API
+    API -->|JSON| Browser
+    Browser -->|Render| ReactSetState
 ```
 
 ---
@@ -904,6 +949,23 @@ GET /v1/steps?step_type=FILTER&stats.filter_rate__gt=0.9&started_at__gte=2024-01
 - **Why**: Fast, no setup required, file-based
 - **Usage**: Test database isolation
 
+### Frontend Stack
+
+#### **Next.js 15 (App Router)**
+- **Purpose**: Web framework for the Dashboard.
+- **Why**: Server Side Rendering (SSR) capabilities, simplified routing, and excellent developer experience.
+- **Usage**: Main dashboard application logic and page structure.
+
+#### **Tailwind CSS**
+- **Purpose**: Styling and layout.
+- **Why**: Utility-first approach allows for rapid, consistent UI development.
+- **Usage**: All visual components and responsive design.
+
+#### **TypeScript**
+- **Purpose**: Static typing for the frontend.
+- **Why**: Prevents runtime errors and improves maintainability in data-heavy UIs.
+- **Usage**: End-to-end type safety for API responses and component props.
+
 ### Database Options
 
 #### **SQLite** (Development/Testing)
@@ -1171,6 +1233,38 @@ with xray_run("CompetitorDiscovery"):
    - Separate workspaces per team
    - API keys with scoped permissions
    - Data isolation (team A can't see team B's runs)
+
+---
+
+## Deployment Guide
+
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- PostgreSQL (optional, for production)
+
+### Backend Deployment (FastAPI)
+1. **Environment Setup**: Create a virtual environment and install `requirements.txt`.
+2. **Database**: Configure the connection string in `api/database.py`.
+3. **Run**: Use Uvicorn for production:
+   ```bash
+   uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 4
+   ```
+
+### Frontend Deployment (Next.js)
+1. **Environment**: Set `NEXT_PUBLIC_API_URL` to point to your FastAPI server.
+2. **Build**:
+   ```bash
+   npm install
+   npm run build
+   ```
+3. **Start**:
+   ```bash
+   npm start
+   ```
+
+### Docker Integration
+While local execution is straightforward, production deployments should utilize the provided `Dockerfile` (if available) or a standard containerization strategy to ensure consistency across environments.
 
 ### Integrations
 
